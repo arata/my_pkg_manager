@@ -89,6 +89,9 @@ def extract_conda_package(conda_file: str, output_dir: str):
     """
     .conda パッケージを展開して output_dir に配置する
     """
+
+    print(f'extract {conda_file} to {output_dir}')
+    
     os.makedirs(output_dir, exist_ok=True)
 
     # 1. .conda は zip として扱える
@@ -339,15 +342,18 @@ if __name__ == "__main__":
     pprint(all_install_package_list)
     pprint([i['filename.conda'] for i in all_install_package_list])
     print("---------------- all_install_package_list -------------------")
-    download_package(pkg)
-    cache_dir = ".cache"
-    extract_conda_package(
-        os.path.join(cache_dir, pkg['filename.conda']),
-        os.path.join(cache_dir, pkg['filename'].replace(".conda", ""))
-    )
 
-    print("Install: ", pkg['filename'])
-    install_package(pkg['filename'])
+    # package install
+    for package in all_install_package_list[::-1]:
+        download_package(package)
+        cache_dir = ".cache"
+        extract_conda_package(
+            os.path.join(cache_dir, package['filename.conda']),
+            os.path.join(cache_dir, package['filename'].replace(".conda", ""))
+        )
+
+        print("Install: ", package['filename'])
+        install_package(package['filename'])
 
     print(time.time() - start_time)
 
