@@ -71,6 +71,9 @@ def search_candidate(tp: str, repodata) -> list:
     for i in repodata["packages.conda"]:
         pcf = parse_conda_filename(i)
         if tp == pcf['name']:
+            print('------ search candidate -------')
+            pprint(pcf)
+            print('------ search candidate -------')
             _candidate_list.append(pcf)
             
     return _candidate_list
@@ -247,7 +250,7 @@ if __name__ == "__main__":
 
     # check dependencies
     print(" ----- check dependencies ----- ")
-    all_install_package_list = [pkg_info]
+    all_install_package_list = [pkg]
     have_to_check_dep = []
     have_to_check_dep += pkg_info['depends']
 
@@ -280,7 +283,10 @@ if __name__ == "__main__":
 
             candidate_list = version_satisfies_candidate_list
 
+        print("------- here -----------")
         pprint(candidate_list)
+        print(target_package_parse_res['build'])
+        print("------- here -----------")
         if target_package_parse_res['build']:
             build_satisfies_candidate_list = []
             for c in candidate_list:
@@ -292,19 +298,30 @@ if __name__ == "__main__":
             candidate_list = build_satisfies_candidate_list
 
 
-        # if reache this if, the candidate still remaining because of 
+        # if reache this if, the candidate still remaining because of version are like >= and target_package_parse_res['build'] is None
         if len(candidate_list) > 1:
             version_list = [c['version'] for c in candidate_list]
             max_version = max(version_list, key=Version)
             candidate_list = [c for c in candidate_list if c['version'] == max_version]
 
             # select latest build hash hash be like "h4ab18f5_1" or "3_gnu"
-            _hash = 0
-            last_pkg = None
-            for c in candidate_list:
-                if int(c['build'].split('_')[-1]) > _hash:
-                    last_pkg = c
-            candidate_list = [c]
+
+            # _hash = 0
+            # last_pkg = None
+            # for c in candidate_list:
+            #     if int(c['build'].split('_')[-1]) > _hash:
+            #         last_pkg = c
+            # candidate_list = [c]
+
+            # temporarily pick random one
+            import random
+            ind = random.randint(0, len(candidate_list)-1)
+            print('=======================')
+            print(candidate_list)
+            print(len(candidate_list))
+            print(candidate_list[ind])
+            print('=======================')
+            candidate_list = [candidate_list[ind]]
             
         print("-------------- selected ----------------------")
         pprint(candidate_list)
@@ -318,6 +335,10 @@ if __name__ == "__main__":
         have_to_check_dep += pi_dep
         have_to_check_dep.pop(0)
 
+    print("---------------- all_install_package_list -------------------")
+    pprint(all_install_package_list)
+    pprint([i['filename.conda'] for i in all_install_package_list])
+    print("---------------- all_install_package_list -------------------")
     download_package(pkg)
     cache_dir = ".cache"
     extract_conda_package(
