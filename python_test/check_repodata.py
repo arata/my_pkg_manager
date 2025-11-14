@@ -124,10 +124,11 @@ def download_package(package: str, cd = ".cache"):
     # download package
     download_url = urljoin(base_conda_forge_donwload_url, os.path.join("linux-64", package['filename.conda']))
     print("download url: ", download_url)
+    print("download to: ", os.path.join(cd, package['filename.conda']))
     pkg_data = requests.get(download_url).content
     # create .cache dir
     os.makedirs(cd, exist_ok=True)
-    with open(os.path.join(cd, pkg['filename.conda']), mode='wb') as f: # wb でバイト型を書き込める
+    with open(os.path.join(cd, package['filename.conda']), mode='wb') as f: # wb でバイト型を書き込める
         f.write(pkg_data)    
 
 def install_package(package_name: str):
@@ -138,17 +139,21 @@ def install_package(package_name: str):
     file_dir_list.remove("info")
     file_dir_list.remove("metadata.json")
 
-    for item in file_dir_list:
-        print("item: ", item)
-        from_path = os.path.join(package_path, item)
-        destination_path = os.path.join(".prefix", item)
-        print(from_path, " -> ", destination_path)
-        if os.path.isdir(from_path):
-            os.makedirs(destination_path, exist_ok = True)
-        # TODO: if there are the dependencies install first
-        # like below symbolic link. zlib has only libz.so
-        # libz.so -> libz.so.1.2.13
-        shutil.copytree(from_path, destination_path, dirs_exist_ok = True)
+    # for item in file_dir_list:
+    #     print("item: ", item)
+    #     from_path = os.path.join(package_path, item)
+    #     destination_path = os.path.join(".prefix", item)
+    #     print(from_path, " -> ", destination_path)
+    #     if os.path.isdir(from_path):
+    #         os.makedirs(destination_path, exist_ok = True)
+    #     # TODO: if there are the dependencies install first
+    #     # like below symbolic link. zlib has only libz.so
+    #     # libz.so -> libz.so.1.2.13
+    #     shutil.copytree(from_path, destination_path, dirs_exist_ok = True)
+
+    for root, dirs, files in os.walk(from_path):
+        for f in files:
+            all_files.append(os.path.join(root, f))
 
 # def find_dependencies(dependencies):
 #     virtual_package = ["__cuda", "__osx", "__glibc", "__linux", "__unix", "__win", "__conda"]
@@ -344,16 +349,18 @@ if __name__ == "__main__":
     print("---------------- all_install_package_list -------------------")
 
     # package install
-    for package in all_install_package_list[::-1]:
-        download_package(package)
+    for p in all_install_package_list[::-1]:
+        print('*******************************************************')
+        print(p)
+        download_package(p)
         cache_dir = ".cache"
         extract_conda_package(
-            os.path.join(cache_dir, package['filename.conda']),
-            os.path.join(cache_dir, package['filename'].replace(".conda", ""))
+            os.path.join(cache_dir, p['filename.conda']),
+            os.path.join(cache_dir, p['filename'].replace(".conda", ""))
         )
-
-        print("Install: ", package['filename'])
-        install_package(package['filename'])
+        print("Install: ", p['filename'])
+        install_package(p['filename'])
+        print('*******************************************************')
 
     print(time.time() - start_time)
 
