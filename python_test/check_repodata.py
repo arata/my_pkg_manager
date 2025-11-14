@@ -26,7 +26,6 @@ def download_repodata_json():
     if not "repodata.json" in os.listdir():
         response = requests.get("https://conda.anaconda.org/conda-forge/linux-64/repodata.json")
         _repodata = response.json()
-        print(type(_repodata))
         with open('repodata.json', 'w') as f:
             json.dump(_repodata, f, indent=2)
 
@@ -71,9 +70,6 @@ def search_candidate(tp: str, repodata) -> list:
     for i in repodata["packages.conda"]:
         pcf = parse_conda_filename(i)
         if tp == pcf['name']:
-            print('------ search candidate -------')
-            pprint(pcf)
-            print('------ search candidate -------')
             _candidate_list.append(pcf)
             
     return _candidate_list
@@ -90,8 +86,6 @@ def extract_conda_package(conda_file: str, output_dir: str):
     .conda パッケージを展開して output_dir に配置する
     """
 
-    print(f'extract {conda_file} to {output_dir}')
-    
     os.makedirs(output_dir, exist_ok=True)
 
     # 1. .conda は zip として扱える
@@ -104,7 +98,6 @@ def extract_conda_package(conda_file: str, output_dir: str):
         if filename.endswith(".tar.zst"):
             tar_zst_path = os.path.join(output_dir, filename)
             tar_path = tar_zst_path[:-4]  # .zst を削除して tar ファイル名に
-            print(f"Decompressing {tar_zst_path} -> {tar_path}")
             
             # zstd 解凍
             with open(tar_zst_path, 'rb') as f_in, open(tar_path, 'wb') as f_out:
@@ -112,7 +105,6 @@ def extract_conda_package(conda_file: str, output_dir: str):
                 dctx.copy_stream(f_in, f_out)
             
             # 3. tar を展開
-            print(f"Extracting {tar_path} ...")
             with tarfile.open(tar_path, 'r') as tar:
                 tar.extractall(output_dir)
             
@@ -123,8 +115,6 @@ def extract_conda_package(conda_file: str, output_dir: str):
 def download_package(package: str, cd = ".cache"):
     # download package
     download_url = urljoin(base_conda_forge_donwload_url, os.path.join("linux-64", package['filename.conda']))
-    print("download url: ", download_url)
-    print("download to: ", os.path.join(cd, package['filename.conda']))
     pkg_data = requests.get(download_url).content
     # create .cache dir
     os.makedirs(cd, exist_ok=True)
@@ -147,7 +137,6 @@ def install_package(package_name: str):
                 _destination_dir = root.replace(package_path, destination_dir)
                 os.makedirs(_destination_dir, exist_ok=True)
                 _destination = os.path.join(_destination_dir, f)
-                print(f"{_from} -> {_destination}")
                 shutil.move(_from, _destination)
 
 # def find_dependencies(dependencies):
@@ -215,14 +204,10 @@ if __name__ == "__main__":
     repodata = download_repodata_json()
     
     candidate_list = search_candidate(install_packages, repodata)
-    print('Install Candidate for root package: ', candidate_list)
 
     # get all install version
     if install_version:
         candidate_list = [c for c in candidate_list if c['version'] == install_version]
-        print('install version candidate list')
-        pprint(candidate_list)
-
         pkg = candidate_list[install_version]
         
     # get all install hash version
@@ -233,38 +218,26 @@ if __name__ == "__main__":
         max_version = max(version_list, key=Version)
         candidate_list = [c for c in candidate_list if c['version'] == max_version]
 
-        pprint(candidate_list)
-
-        # select latest hash
+        # select latest hash, 
         _hash = 0
         pkg = None
         for c in candidate_list:
             if int(c['build'].split('_')[-1]) > _hash:
                 pkg = c
             
-        print("selected: ", pkg)
-
     pkg_name = pkg['name']
-    print("package name: ", pkg_name)
 
     pkg_info = repodata["packages.conda"][pkg['filename.conda']]
-    print('-'*100)
-    print("package info: ", pkg_info)
 
     # check dependencies
-    print(" ----- check dependencies ----- ")
     all_install_package_list = [pkg]
     have_to_check_dep = []
     have_to_check_dep += pkg_info['depends']
 
     while have_to_check_dep:
-        print("="*100)
-        print("have to check dep: ", have_to_check_dep)
         dep = have_to_check_dep[0]
-        print("search depends pkg: ", dep)
         
         target_package_parse_res = parse_conda_dependency(dep)
-        pprint(target_package_parse_res)
         virtual_package = ["__cuda", "__osx", "__glibc", "__linux", "__unix", "__win", "__conda"]
 
         if target_package_parse_res['name'] in virtual_package:
@@ -272,7 +245,6 @@ if __name__ == "__main__":
             continue
         
         candidate_list = search_candidate(target_package_parse_res['name'], repodata)
-        pprint(candidate_list)
 
         # check version if it have
         if target_package_parse_res['version']:
@@ -280,22 +252,16 @@ if __name__ == "__main__":
             for c in candidate_list:
                 parse_res_version = target_package_parse_res['version']
                 candidate_list_version = c['version']
-                print(candidate_list_version, parse_res_version)
                 if satisfies_version(candidate_list_version, parse_res_version.split(',')):
                     version_satisfies_candidate_list.append(c)
 
             candidate_list = version_satisfies_candidate_list
 
-        print("------- here -----------")
-        pprint(candidate_list)
-        print(target_package_parse_res['build'])
-        print("------- here -----------")
         if target_package_parse_res['build']:
             build_satisfies_candidate_list = []
             for c in candidate_list:
                 parse_res_build = target_package_parse_res['build']
                 candidate_list_build = c['build']
-                print(candidate_list_build, parse_res_build)
                 if candidate_list_build == parse_res_build:
                     build_satisfies_candidate_list.append(c)
             candidate_list = build_satisfies_candidate_list
@@ -319,43 +285,23 @@ if __name__ == "__main__":
             # temporarily pick random one
             import random
             ind = random.randint(0, len(candidate_list)-1)
-            print('=======================')
-            print(candidate_list)
-            print(len(candidate_list))
-            print(candidate_list[ind])
-            print('=======================')
             candidate_list = [candidate_list[ind]]
             
-        print("-------------- selected ----------------------")
-        pprint(candidate_list)
-        print("-------------- selected ----------------------")
         all_install_package_list.append(candidate_list[0])
 
         pi_dep = repodata["packages.conda"][candidate_list[0]['filename.conda']]['depends']
-        print("-------------- next dep ----------------")
-        print(pi_dep)
-        print("-------------- next dep ----------------")
         have_to_check_dep += pi_dep
         have_to_check_dep.pop(0)
 
-    print("---------------- all_install_package_list -------------------")
-    pprint(all_install_package_list)
-    pprint([i['filename.conda'] for i in all_install_package_list])
-    print("---------------- all_install_package_list -------------------")
-
     # package install
     for p in all_install_package_list[::-1]:
-        print('*******************************************************')
-        print(p)
         download_package(p)
         cache_dir = ".cache"
         extract_conda_package(
             os.path.join(cache_dir, p['filename.conda']),
             os.path.join(cache_dir, p['filename'].replace(".conda", ""))
         )
-        print("Install: ", p['filename'])
         install_package(p['filename'])
-        print('*******************************************************')
 
     print(time.time() - start_time)
 
