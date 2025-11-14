@@ -133,27 +133,22 @@ def download_package(package: str, cd = ".cache"):
 
 def install_package(package_name: str):
     package_path = os.path.join(".cache", package_name)
-    file_dir_list = os.listdir(package_path)
 
-    print(file_dir_list)
+    file_dir_list = os.listdir(package_path)
     file_dir_list.remove("info")
     file_dir_list.remove("metadata.json")
 
-    # for item in file_dir_list:
-    #     print("item: ", item)
-    #     from_path = os.path.join(package_path, item)
-    #     destination_path = os.path.join(".prefix", item)
-    #     print(from_path, " -> ", destination_path)
-    #     if os.path.isdir(from_path):
-    #         os.makedirs(destination_path, exist_ok = True)
-    #     # TODO: if there are the dependencies install first
-    #     # like below symbolic link. zlib has only libz.so
-    #     # libz.so -> libz.so.1.2.13
-    #     shutil.copytree(from_path, destination_path, dirs_exist_ok = True)
+    destination_dir = ".prefix"
 
-    for root, dirs, files in os.walk(from_path):
-        for f in files:
-            all_files.append(os.path.join(root, f))
+    for directory in [os.path.join(package_path, d) for d in file_dir_list]:
+        for root, dirs, files in os.walk(directory):
+            for f in files:
+                _from = os.path.join(root, f)
+                _destination_dir = root.replace(package_path, destination_dir)
+                os.makedirs(_destination_dir, exist_ok=True)
+                _destination = os.path.join(_destination_dir, f)
+                print(f"{_from} -> {_destination}")
+                shutil.move(_from, _destination)
 
 # def find_dependencies(dependencies):
 #     virtual_package = ["__cuda", "__osx", "__glibc", "__linux", "__unix", "__win", "__conda"]
