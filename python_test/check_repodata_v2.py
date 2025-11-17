@@ -228,6 +228,9 @@ if __name__ == "__main__":
         target_package = PackageMetaInfo.from_direct(package_name, versions, build=None)
 
         install_target = repodata.search_package_from_repodata(target_package)
+        if not install_target:
+            print('no package are found')
+            sys.exit()
         print("----------- install packages dependencies --------------")
         pprint(install_target.depends)
         print("--------------------------------------------------------")
@@ -265,6 +268,7 @@ if __name__ == "__main__":
             install_target = repodata.search_package_from_repodata(target_package)
             if not install_target:
                 print(f"COULD NOT FIND PACKAGE {target_package.name}")
+                input()
                 have_to_check_dep.pop(0)
                 continue
             
