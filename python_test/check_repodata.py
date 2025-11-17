@@ -191,7 +191,8 @@ if __name__ == "__main__":
     start_time = time.time()
 
     # target_packages = "zlib=1.2.13"
-    target_packages = "zlib"
+    # target_packages = "zlib"
+    target_packages = "python"
 
     res = target_packages.split("=")
     if len(res) > 1:
@@ -217,6 +218,7 @@ if __name__ == "__main__":
         version_list = [c['version'] for c in candidate_list]
         max_version = max(version_list, key=Version)
         candidate_list = [c for c in candidate_list if c['version'] == max_version]
+        pprint(candidate_list)
 
         # select latest hash, 
         _hash = 0
@@ -226,7 +228,6 @@ if __name__ == "__main__":
                 pkg = c
             
     pkg_name = pkg['name']
-
     pkg_info = repodata["packages.conda"][pkg['filename.conda']]
 
     # check dependencies
