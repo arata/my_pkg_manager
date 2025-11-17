@@ -3,6 +3,7 @@
 .prefix/
 repodata.json
 pkg/
+**/__pycache__/**
 
 # Added by cargo
 #
