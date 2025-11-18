@@ -45,6 +45,8 @@ class PackageMetaInfo:
     # package_name: str = None
     # name: str = None
     # version = None
+    def __repr__(self):
+        return f"PackageMetaInfo(name={self.name!r}, version={self.version!r}, build={self.build!r})"
 
     @staticmethod
     def from_repodata(key: str, info: dict) -> "PackageMetaInfo":
@@ -70,6 +72,66 @@ class PackageMetaInfo:
         # pmi.build = build
 
         return pmi
+
+    @staticmethod
+    def from_depend_format(depend: str):
+        # parse depends
+        pattern = r"^([A-Za-z0-9_\-\.\+]+)(?:\s+([^\s]+))?(?:\s+([^\s]+))?$"
+        # match = re.match(pattern, dep)
+        match = re.match(pattern, aaaaaaa)
+
+        if not match:
+            print("not match: ", {'name': dep, 'version': None, 'build': None})
+
+        name, version, build = match.groups()
+        if version:
+           version = version.split(',') 
+        print(f"name: {name}, version: {version}, build: {build}")
+
+        pmi = PackageMetaInfo()
+        setattr(pmi, "name", name)
+        setattr(pmi, "version", version)
+        setattr(pmi, "build", build)
+
+        return pmi
+
+    # ------------------------------
+    # 追加：比較メソッド
+    # ------------------------------
+    def compare_to(self, other_pkg) -> bool:
+        """
+        name・version・buildが一致 or 条件に合うかを判定する
+        """
+
+        # ---------- name ----------
+        if hasattr(self, "name") and hasattr(other_pkg, "name"):
+            if self.name != other_pkg.name:
+                return False
+
+        # ---------- version ----------
+        if hasattr(self, "version") and hasattr(other_pkg, "version"):
+
+            s_ver = LooseVersion(self.version)
+            o_ver = LooseVersion(other_pkg.version)
+
+            # Version 化できない → 文字列比較
+            if s_ver is None or o_ver is None:
+                if self.version != other_pkg.version:
+                    return False
+            else:
+                if s_ver != o_ver:
+                    return False
+
+        # # ---------- build ----------
+        # if hasattr(self, "build") and hasattr(other, "build"):
+        #     # 完全一致
+        #     if self.build != other.build:
+        #         # 一致しない場合は prefix 一致など条件付き一致にも対応
+        #         if not self.build.startswith(other.build) and not other.build.startswith(self.build):
+        #             return False
+
+        return True        
+        
 
 
 class RepoData():
@@ -235,17 +297,21 @@ if __name__ == "__main__":
         pprint(install_target.depends)
         print("--------------------------------------------------------")
         all_install_package_list.append(install_target)
-
-        have_to_check_dep = [] + install_target.depends 
+        print("here1")
+        # have_to_check_dep = [PackageMetaInfo.from_depend_format(i) for i in install_target.depends]
+        have_to_check_dep = [PackageMetaInfo.from_direct(i) for i in install_target.depends]
+        print("here")
+        # have_to_check_dep = [] + install_target.depends 
 
         while have_to_check_dep:
             print("===============================================")
 
-            print([i for i in have_to_check_dep])
+            print([i.name for i in have_to_check_dep])
             
             dep = have_to_check_dep[0]
             print(f"search dependencies: {dep}")
 
+            """
             # parse depends
             pattern = r"^([A-Za-z0-9_\-\.\+]+)(?:\s+([^\s]+))?(?:\s+([^\s]+))?$"
             match = re.match(pattern, dep)
@@ -262,10 +328,12 @@ if __name__ == "__main__":
             if name in virtual_package:
                 have_to_check_dep.pop(0)
                 continue
-
-            target_package = PackageMetaInfo.from_direct(name, version, build)
+            """
+            
+            # target_package = PackageMetaInfo.from_direct(name, version, build)
             
             install_target = repodata.search_package_from_repodata(target_package)
+            print("install target")
             if not install_target:
                 print(f"COULD NOT FIND PACKAGE {target_package.name}")
                 input()
@@ -274,8 +342,18 @@ if __name__ == "__main__":
             
             all_install_package_list.append(install_target)
 
-            have_to_check_dep += install_target.depends 
-
+            # have to check always searched
+            _i = 0
+            for install_target_dep in install_target.depends:
+                for d in have_to_check_dep:
+                    # _i += 1
+                    # print(_i)
+                    if d.compare_to(install_target_dep):
+                        # print("true")
+                        have_to_check_dep.append(
+                            PackageMetaInfo.from_direct(install_target_dep)
+                        )
+            sys.exit()
             have_to_check_dep.pop(0)
             print("===============================================")
 
