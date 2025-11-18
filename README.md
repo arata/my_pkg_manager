@@ -1,4 +1,4 @@
-my \****ing noob prototype package manager. 
+my \****ing noob prototype package manager for rust practice. 
 
 
 
