@@ -150,7 +150,7 @@ class RepoData():
         v = LooseVersion(version)
 
         for cond in conditions:
-            match = re.match(r"(<=|>=|==|!=|<|>)(.+)", cond.strip())
+            match = re.match(r"(<=|>=|=|!=|<|>)(.+)", cond.strip())
             if not match:
                 print('not match condition', cond)
                 try:
@@ -165,8 +165,7 @@ class RepoData():
 
             op, target = match.groups()
             target_v = LooseVersion(target.strip())
-
-            if op == "==":
+            if op == "=":
                 if not (v == target_v):
                     return False
             elif op == "!=":
@@ -250,7 +249,9 @@ if __name__ == "__main__":
     # all_package.append(target_package)
     # target_package = "python>3.14"
     # all_package.append(target_package)
-    target_package = "python=3.14"
+    # target_package = "python=3.14" # ng
+    # target_package = "python=3.13" # ng
+    target_package = "python=3.13.3" # 
     all_package.append(target_package)
     # target_package = "python<3.14,>3.10"
     # all_package.append(target_package)
@@ -275,7 +276,7 @@ if __name__ == "__main__":
         rest = spec[m.end():]  # package の後ろの比較表現部分
 
         # 比較式をすべて抽出（>=, <=, >, < の順で優先）
-        version_specs = re.findall(r"(>=|<=|>|<)\s*([0-9][0-9A-Za-z\.\-]*)", rest)
+        version_specs = re.findall(r"(>=|<=|>|<|=)\s*([0-9][0-9A-Za-z\.\-]*)", rest)
 
         # リスト形式にする
         versions = [op + ver for op, ver in version_specs]
@@ -291,6 +292,7 @@ if __name__ == "__main__":
         pprint(install_target)
         pprint(install_target.depends)
         print("--------------------------------------------------------")
+        input()
         all_install_package_list.append(install_target)
         have_to_check_dep = [PackageMetaInfo.from_depend_format(i) for i in install_target.depends]
 
