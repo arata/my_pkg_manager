@@ -151,10 +151,8 @@ class RepoData():
 
         for cond in conditions:
             match = re.match(r"(<=|>=|=|!=|<|>)(.+)", cond.strip())
-            if not match:
-                print('not match condition', cond)
+            if not match: # 不等号がなく数字だったときにはこっちに行く
                 try:
-                    print(f'cond is {cond} | v is {v}')
                     target_v = LooseVersion(cond)
                     if v == target_v:
                         return True
@@ -187,11 +185,18 @@ class RepoData():
 
         return True # condition are satisifies
 
-    def _satisfies_build(self, build_tag1, build_tag2):
-        if build_tag1 == build_tag2:
+    def _satisfies_build(self, repo_build, target_build):
+        if repo_build == target_build:
             return True
-        # else:
-        #     return False
+        else:
+            if "*" in target_build:
+                match_hash = target_build.split("*")
+                print(f"match_hash: {match_hash} | repo_build {repo_build}")
+                for _hash in match_hash:
+                    # if not _hash in repo_build:
+                    print(f"repo_build.end_with: {repo_build.endswith(_hash)}")
+                    if not repo_build.endswith(_hash):
+                        return False
 
     def search_package_from_repodata(self, target_package: PackageMetaInfo) -> list:
         _candidate_list = []
@@ -208,10 +213,8 @@ class RepoData():
             if target_package.version:
                 if not self._satisfies_version(repodata_cl.version, target_package.version):
                     continue
-
             # 名前とバージョンが一致，ビルドも一致したら特定のパッケージなのでreturn
             if target_package.build:
-                # if repodata_cl.build == target_package.build:
                 if self._satisfies_build(repodata_cl.build, target_package.build):
                     return repodata_cl
 
@@ -249,10 +252,10 @@ if __name__ == "__main__":
     # all_package.append(target_package)
     # target_package = "python>3.14"
     # all_package.append(target_package)
-    # target_package = "python=3.14" # ng
-    # target_package = "python=3.13" # ng
-    target_package = "python=3.13.3" # 
+    # target_package = "python=3.14" # ng because python_abi for 3.14 are not found
+    target_package = "python=3.13" # ng
     all_package.append(target_package)
+    # target_package = "python=3.13.3" # ok
     # target_package = "python<3.14,>3.10"
     # all_package.append(target_package)
     # target_package = "python<3.14>3.10"
