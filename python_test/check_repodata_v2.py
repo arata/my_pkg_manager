@@ -14,7 +14,7 @@ import zstandard as zstd
 import re
 from packaging.version import Version
 from pprint import pprint
-from version_check import LooseVersion
+from version_check import LooseVersion, connect_version
 
 base_conda_forge_donwload_url = "https://conda.anaconda.org/conda-forge/"
 base_anaconda_donwload_url = "https://repo.anaconda.com/pkgs/main/"
@@ -77,16 +77,14 @@ class PackageMetaInfo:
     def from_depend_format(depend: str):
         # parse depends
         pattern = r"^([A-Za-z0-9_\-\.\+]+)(?:\s+([^\s]+))?(?:\s+([^\s]+))?$"
-        # match = re.match(pattern, dep)
-        match = re.match(pattern, aaaaaaa)
+        match = re.match(pattern, depend)
 
         if not match:
-            print("not match: ", {'name': dep, 'version': None, 'build': None})
+            print("not match: ", {'name': depend, 'version': None, 'build': None})
 
         name, version, build = match.groups()
         if version:
            version = version.split(',') 
-        print(f"name: {name}, version: {version}, build: {build}")
 
         pmi = PackageMetaInfo()
         setattr(pmi, "name", name)
@@ -98,29 +96,22 @@ class PackageMetaInfo:
     # ------------------------------
     # 追加：比較メソッド
     # ------------------------------
-    def compare_to(self, other_pkg) -> bool:
+    def compare_to(self, other_pkg):
         """
         name・version・buildが一致 or 条件に合うかを判定する
         """
-
         # ---------- name ----------
         if hasattr(self, "name") and hasattr(other_pkg, "name"):
+            # print("compare_to name: ", self.name, other_pkg.name)
             if self.name != other_pkg.name:
-                return False
-
+                return None
+        
         # ---------- version ----------
         if hasattr(self, "version") and hasattr(other_pkg, "version"):
-
-            s_ver = LooseVersion(self.version)
-            o_ver = LooseVersion(other_pkg.version)
-
-            # Version 化できない → 文字列比較
-            if s_ver is None or o_ver is None:
-                if self.version != other_pkg.version:
-                    return False
-            else:
-                if s_ver != o_ver:
-                    return False
+            res_connect_version = connect_version(self.version, other_pkg.version)
+            if not res_connect_version:
+                print("Version are conflict !!!!!")
+                return None
 
         # # ---------- build ----------
         # if hasattr(self, "build") and hasattr(other, "build"):
@@ -130,9 +121,8 @@ class PackageMetaInfo:
         #         if not self.build.startswith(other.build) and not other.build.startswith(self.build):
         #             return False
 
-        return True        
+        return res_connect_version
         
-
 
 class RepoData():
     def __init__(self, path='.'):
@@ -188,7 +178,6 @@ class RepoData():
                 if not (v <= target_v):
                     return False
             elif op == ">":
-                print("op > ")
                 # 3.14.0 > 3.14
                 if not (v > target_v):
                     return False
@@ -285,7 +274,6 @@ if __name__ == "__main__":
         # リスト形式にする
         versions = [op + ver for op, ver in version_specs]
         print(versions)
-        input()
 
         target_package = PackageMetaInfo.from_direct(package_name, versions, build=None)
 
@@ -293,69 +281,43 @@ if __name__ == "__main__":
         if not install_target:
             print('no package are found')
             sys.exit()
+
         print("----------- install packages dependencies --------------")
         pprint(install_target.depends)
         print("--------------------------------------------------------")
         all_install_package_list.append(install_target)
-        print("here1")
-        # have_to_check_dep = [PackageMetaInfo.from_depend_format(i) for i in install_target.depends]
-        have_to_check_dep = [PackageMetaInfo.from_direct(i) for i in install_target.depends]
-        print("here")
-        # have_to_check_dep = [] + install_target.depends 
+        have_to_check_dep = [PackageMetaInfo.from_depend_format(i) for i in install_target.depends]
 
         while have_to_check_dep:
-            print("===============================================")
-
-            print([i.name for i in have_to_check_dep])
-            
             dep = have_to_check_dep[0]
-            print(f"search dependencies: {dep}")
-
-            """
-            # parse depends
-            pattern = r"^([A-Za-z0-9_\-\.\+]+)(?:\s+([^\s]+))?(?:\s+([^\s]+))?$"
-            match = re.match(pattern, dep)
-
-            if not match:
-                print("not match: ", {'name': dep, 'version': None, 'build': None})
-
-            name, version, build = match.groups()
-            if version:
-               version = version.split(',') 
-            print(f"name: {name}, version: {version}, build: {build}")
-
-            virtual_package = ["__cuda", "__osx", "__glibc", "__linux", "__unix", "__win", "__conda"]
-            if name in virtual_package:
-                have_to_check_dep.pop(0)
-                continue
-            """
             
-            # target_package = PackageMetaInfo.from_direct(name, version, build)
-            
-            install_target = repodata.search_package_from_repodata(target_package)
-            print("install target")
+            install_target = repodata.search_package_from_repodata(dep)
             if not install_target:
-                print(f"COULD NOT FIND PACKAGE {target_package.name}")
-                input()
+                print(f"COULD NOT FIND PACKAGE {dep}")
                 have_to_check_dep.pop(0)
                 continue
-            
+
             all_install_package_list.append(install_target)
 
-            # have to check always searched
-            _i = 0
+            # もし新しいdependsに，すでに把握しているdependsがあった場合にバージョンをアップデートするか，
+            # もし，なかったら追加する．
             for install_target_dep in install_target.depends:
-                for d in have_to_check_dep:
-                    # _i += 1
-                    # print(_i)
-                    if d.compare_to(install_target_dep):
-                        # print("true")
-                        have_to_check_dep.append(
-                            PackageMetaInfo.from_direct(install_target_dep)
-                        )
-            sys.exit()
+
+                install_target_dep = PackageMetaInfo.from_depend_format(install_target_dep)
+                virtual_package = ["__cuda", "__osx", "__glibc", "__linux", "__unix", "__win", "__conda"]
+                if install_target_dep.name in virtual_package:
+                    continue
+
+                copy_have_to_check_dep = have_to_check_dep.copy()
+                for d in copy_have_to_check_dep:
+                    if install_target_dep.name == d.name:
+                        new_version = d.compare_to(install_target_dep)
+                        if new_version:
+                            d.version = new_version
+                    else:
+                        have_to_check_dep.append(install_target_dep)
+
             have_to_check_dep.pop(0)
-            print("===============================================")
 
         for pkg in all_install_package_list:
             print(pkg)
