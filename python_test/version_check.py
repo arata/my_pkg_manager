@@ -238,3 +238,5 @@ if __name__ == "__main__":
     m = ['>=18']
 
     ur = connect_version(l, m)
+
+    print(LooseVersion("3.14.*") == LooseVersion("3.14.1"))

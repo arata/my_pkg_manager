@@ -152,8 +152,9 @@ class RepoData():
         for cond in conditions:
             match = re.match(r"(<=|>=|==|!=|<|>)(.+)", cond.strip())
             if not match:
-                print('not match')
+                print('not match condition', cond)
                 try:
+                    print(f'cond is {cond} | v is {v}')
                     target_v = LooseVersion(cond)
                     if v == target_v:
                         return True
@@ -187,6 +188,12 @@ class RepoData():
 
         return True # condition are satisifies
 
+    def _satisfies_build(self, build_tag1, build_tag2):
+        if build_tag1 == build_tag2:
+            return True
+        # else:
+        #     return False
+
     def search_package_from_repodata(self, target_package: PackageMetaInfo) -> list:
         _candidate_list = []
         # grep with name
@@ -201,13 +208,12 @@ class RepoData():
             # 名前は一致，バージョンをチェックして一致しなかったらcontinue
             if target_package.version:
                 if not self._satisfies_version(repodata_cl.version, target_package.version):
-                    print(package_key, repodata_cl.version, target_package.version)
                     continue
 
             # 名前とバージョンが一致，ビルドも一致したら特定のパッケージなのでreturn
             if target_package.build:
-                input('here')
-                if repodata_cl.build == target_package.build:
+                # if repodata_cl.build == target_package.build:
+                if self._satisfies_build(repodata_cl.build, target_package.build):
                     return repodata_cl
 
             # どれかしらに部分一致していたら代入
@@ -276,26 +282,35 @@ if __name__ == "__main__":
         print(versions)
 
         target_package = PackageMetaInfo.from_direct(package_name, versions, build=None)
-
         install_target = repodata.search_package_from_repodata(target_package)
         if not install_target:
             print('no package are found')
             sys.exit()
 
-        print("----------- install packages dependencies --------------")
+        print("----------- install packages and dependencies --------------")
+        pprint(install_target)
         pprint(install_target.depends)
         print("--------------------------------------------------------")
         all_install_package_list.append(install_target)
         have_to_check_dep = [PackageMetaInfo.from_depend_format(i) for i in install_target.depends]
 
         while have_to_check_dep:
+
+            print("=================================================================")
             dep = have_to_check_dep[0]
+            print(f'Search dependent package of {dep}')
+            virtual_package = ["__cuda", "__osx", "__glibc", "__linux", "__unix", "__win", "__conda"]
+            if dep.name in virtual_package:
+                print(f'{dep} is virtual packages, so continue')
+                have_to_check_dep.pop(0)
+                continue
             
             install_target = repodata.search_package_from_repodata(dep)
             if not install_target:
                 print(f"COULD NOT FIND PACKAGE {dep}")
                 have_to_check_dep.pop(0)
                 continue
+            print(f'{dep}の条件に一致するパッケージ{install_target}を発見しました')
 
             all_install_package_list.append(install_target)
 
@@ -308,19 +323,23 @@ if __name__ == "__main__":
                 if install_target_dep.name in virtual_package:
                     continue
 
-                copy_have_to_check_dep = have_to_check_dep.copy()
-                for d in copy_have_to_check_dep:
-                    if install_target_dep.name == d.name:
-                        new_version = d.compare_to(install_target_dep)
-                        if new_version:
-                            d.version = new_version
-                    else:
-                        have_to_check_dep.append(install_target_dep)
+                # 新しいdependsが既存のdependsチェックリストに入っているかを調べる
+                # もし入っていなかったら追加
+                if not install_target_dep.name in [_d.name for _d in have_to_check_dep]:
+                    have_to_check_dep.append(install_target_dep)
+
+                # もし入っていたらバージョンの確認
+                else:
+                    for d in have_to_check_dep.copy():
+                        if d.name == install_target_dep:
+                            new_version = d.compare_to(install_target_dep)
+                            if new_version:
+                                d.version = new_version
 
             have_to_check_dep.pop(0)
 
-        for pkg in all_install_package_list:
-            print(pkg)
+    print('fin')
+    pprint(all_install_package_list)
 
 # embed()
 
