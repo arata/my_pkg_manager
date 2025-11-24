@@ -39,6 +39,7 @@ class LooseVersion:
 
         # ワイルドカード対応
         if "*" in self.original:
+            print("include wildcard")
             parts = self.original.split(".")
             fixed = []
             for p in parts:
@@ -240,3 +241,7 @@ if __name__ == "__main__":
     ur = connect_version(l, m)
 
     print(LooseVersion("3.14.*") == LooseVersion("3.14.1"))
+
+
+
+    

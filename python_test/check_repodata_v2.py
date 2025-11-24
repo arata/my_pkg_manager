@@ -23,6 +23,9 @@ base_anaconda_donwload_url = "https://repo.anaconda.com/pkgs/main/"
 # "https://anaconda.org/anaconda/llama.cpp/0.0.6872/download/linux-64/llama.cpp-0.0.6872-cuda124_h3e60e59_100.tar.bz2"
 # https://repo.anaconda.com/pkgs/main/linux-64/llama.cpp-0.0.6872-cuda124_h3e60e59_100.tar.bz2
 
+def debug_print(string):
+    print("DEBUG: " + str(string))
+
 class PackageMetaInfo:
     """
     >>> repodata["packages.conda"]["tensorflow-2.19.0-cpu_py310h42475c5_2.conda"]
@@ -148,6 +151,7 @@ class RepoData():
         """
 
         v = LooseVersion(version)
+        print("version: ",version, 'conditions: ', conditions)
 
         for cond in conditions:
             match = re.match(r"(<=|>=|=|!=|<|>)(.+)", cond.strip())
@@ -198,8 +202,9 @@ class RepoData():
                     if not repo_build.endswith(_hash):
                         return False
 
-    def search_package_from_repodata(self, target_package: PackageMetaInfo) -> list:
+    def search_package_from_repodata(self, target_package: PackageMetaInfo, get_week_version=False) -> list:
         _candidate_list = []
+        _candidate_list_week_version = []
         # grep with name
         for package_key in self.repodata["packages.conda"].keys():
 
@@ -212,6 +217,13 @@ class RepoData():
             # 名前は一致，バージョンをチェックして一致しなかったらcontinue
             if target_package.version:
                 if not self._satisfies_version(repodata_cl.version, target_package.version):
+                    # check week version
+                    if get_week_version:
+                        for version in target_package.version:
+                            m = re.match(r"(<=|>=|=|!=|<|>)(.+)", version.strip())
+                            op, ver = m.groups()
+                            if ver in repodata_cl.version:
+                                _candidate_list_week_version.append(repodata_cl)
                     continue
             # 名前とバージョンが一致，ビルドも一致したら特定のパッケージなのでreturn
             if target_package.build:
@@ -223,7 +235,13 @@ class RepoData():
 
         # パッケージが見つからなかったら
         if len(_candidate_list) == 0:
-            return None
+            if get_week_version:
+                debug_print(_candidate_list_week_version)
+                _candidate_list = _candidate_list_week_version
+            else:
+                debug_print("return with no package")
+                return None
+
             
         if len(_candidate_list) > 0:
             print(f'候補はまだたくさんあります．{len(_candidate_list)}')
@@ -240,6 +258,7 @@ class RepoData():
             _candidate_list = [c for c in _candidate_list if c.build_number == max_build_number]
             print(f'build numberのバージョンで絞りました．候補はまだ {len(_candidate_list)} 個あります．')
 
+        print("_candidate_list: ", _candidate_list)
         return _candidate_list[0]
 
 
@@ -248,22 +267,26 @@ if __name__ == "__main__":
 
     all_package = []
 
-    # target_package = "python"
-    # all_package.append(target_package)
-    # target_package = "python>3.14"
-    # all_package.append(target_package)
-    # target_package = "python=3.14" # ng because python_abi for 3.14 are not found
-    target_package = "python=3.13" # ng
+    target_package = "python"
     all_package.append(target_package)
-    # target_package = "python=3.13.3" # ok
-    # target_package = "python<3.14,>3.10"
-    # all_package.append(target_package)
-    # target_package = "python<3.14>3.10"
-    # all_package.append(target_package)
-    # target_package = "python>=3.10,<=3.15"
-    # all_package.append(target_package)
-    # target_package = "python>=3.10<=3.15"
-    # all_package.append(target_package)
+    target_package = "python>3.14"
+    all_package.append(target_package)
+    target_package = "python=3.14" # ng because python_abi for 3.14 are not found
+    all_package.append(target_package)
+    target_package = "python=3.13.*" # ok
+    all_package.append(target_package)
+    target_package = "python=3.13" # ok
+    all_package.append(target_package)
+    target_package = "python=3.13.3" # ok
+    all_package.append(target_package)
+    target_package = "python<3.14,>3.10"
+    all_package.append(target_package)
+    target_package = "python<3.14>3.10"
+    all_package.append(target_package)
+    target_package = "python>=3.10,<=3.15"
+    all_package.append(target_package)
+    target_package = "python>=3.10<=3.15"
+    all_package.append(target_package)
 
     repodata = RepoData()
 
@@ -271,7 +294,8 @@ if __name__ == "__main__":
     # parse command
     for spec in all_package:
 
-        m = re.match(r"([A-Za-z0-9_\-]+)", spec)
+        # m = re.match(r"([A-Za-z0-9_\-]+)", spec)
+        m = re.match(r"([A-Za-z0-9_\-\.\*]+)", spec)
         if not m:
             raise ValueError(f"Invalid package spec: {spec}")
 
@@ -279,14 +303,17 @@ if __name__ == "__main__":
         rest = spec[m.end():]  # package の後ろの比較表現部分
 
         # 比較式をすべて抽出（>=, <=, >, < の順で優先）
-        version_specs = re.findall(r"(>=|<=|>|<|=)\s*([0-9][0-9A-Za-z\.\-]*)", rest)
+        # version_specs = re.findall(r"(>=|<=|>|<|=)\s*([0-9][0-9A-Za-z\.\-]*)", rest)
+        version_specs = re.findall(r"(>=|<=|>|<|=)\s*([0-9][0-9A-Za-z\.\-\*]*)", rest)
 
         # リスト形式にする
         versions = [op + ver for op, ver in version_specs]
-        print(versions)
+        debug_print(versions)
 
         target_package = PackageMetaInfo.from_direct(package_name, versions, build=None)
-        install_target = repodata.search_package_from_repodata(target_package)
+        # debug_print(target_package)
+        debug_print(target_package)
+        install_target = repodata.search_package_from_repodata(target_package, get_week_version=True)
         if not install_target:
             print('no package are found')
             sys.exit()
@@ -343,8 +370,8 @@ if __name__ == "__main__":
 
             have_to_check_dep.pop(0)
 
-    print('fin')
-    pprint(all_install_package_list)
+        print('fin')
+        pprint(all_install_package_list)
 
 # embed()
 
