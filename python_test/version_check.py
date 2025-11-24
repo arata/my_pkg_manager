@@ -215,6 +215,11 @@ if __name__ == "__main__":
         max(["1.2.2", "2.2.*"], key=LooseVersion)
     )
 
+    year = ['2022g', '2023b', '2023c', '2023d', '2024a', '2024a', '2024b', '2025a', '2025b']
+    print("max year is : ", 
+        max(year, key=LooseVersion)
+    )
+
     # print(max(v3, v5, key=Version))
 
     a = [">3.14", "<3.20"]

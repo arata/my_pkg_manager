@@ -23,8 +23,8 @@ base_anaconda_donwload_url = "https://repo.anaconda.com/pkgs/main/"
 # "https://anaconda.org/anaconda/llama.cpp/0.0.6872/download/linux-64/llama.cpp-0.0.6872-cuda124_h3e60e59_100.tar.bz2"
 # https://repo.anaconda.com/pkgs/main/linux-64/llama.cpp-0.0.6872-cuda124_h3e60e59_100.tar.bz2
 
-def debug_print(string):
-    print("DEBUG: " + str(string))
+def debug_print(*args):
+    print("DEBUG:", *args)
 
 class PackageMetaInfo:
     """
@@ -133,14 +133,25 @@ class RepoData():
         self.repodata = self._download_repodata_json(path)
 
     def _download_repodata_json(self, path):
-        if not "repodata.json" in os.listdir(path):
+        if not "repodata_linux-64.json" in os.listdir(path):
             response = requests.get("https://conda.anaconda.org/conda-forge/linux-64/repodata.json")
-            _repodata = response.json()
-            with open(os.path.join(path, 'repodata.json'), mode='w') as f:
-                json.dump(_repodata, f, indent=2)
+            _repodata_linux64 = response.json()
+            with open(os.path.join(path, 'repodata_linux-64.json'), mode='w') as f:
+                json.dump(_repodata_linux64, f, indent=2)
 
-        with open(os.path.join(path, 'repodata.json'), mode="r") as f:
-            _repodata = json.load(f)
+        if not "repodata_noarch.json" in os.listdir(path):
+            response = requests.get("https://conda.anaconda.org/conda-forge/noarch/repodata.json")
+            _repodata_noarch = response.json()
+            with open(os.path.join(path, 'repodata_noarch.json'), mode='w') as f:
+                json.dump(_repodata_noarch, f, indent=2)
+
+        with open(os.path.join(path, 'repodata_linux-64.json'), mode="r") as f:
+            _repodata_linux64 = json.load(f)
+
+        with open(os.path.join(path, 'repodata_noarch.json'), mode="r") as f:
+            _repodata_noarch = json.load(f)
+
+        _repodata = {'linux-64': _repodata_linux64, 'noarch': _repodata_noarch}
 
         return _repodata
 
@@ -151,7 +162,7 @@ class RepoData():
         """
 
         v = LooseVersion(version)
-        print("version: ",version, 'conditions: ', conditions)
+        debug_print("version: ",version, 'conditions: ', conditions)
 
         for cond in conditions:
             match = re.match(r"(<=|>=|=|!=|<|>)(.+)", cond.strip())
@@ -206,32 +217,33 @@ class RepoData():
         _candidate_list = []
         _candidate_list_week_version = []
         # grep with name
-        for package_key in self.repodata["packages.conda"].keys():
+        for arch in self.repodata.keys():
+            for package_key in self.repodata[arch]["packages.conda"].keys():
 
-            repodata_cl = PackageMetaInfo.from_repodata(package_key,
-                                                        self.repodata['packages.conda'][package_key])
-            # 名前が一致していなかったらcontinue
-            if target_package.name != repodata_cl.name:
-                continue
-
-            # 名前は一致，バージョンをチェックして一致しなかったらcontinue
-            if target_package.version:
-                if not self._satisfies_version(repodata_cl.version, target_package.version):
-                    # check week version
-                    if get_week_version:
-                        for version in target_package.version:
-                            m = re.match(r"(<=|>=|=|!=|<|>)(.+)", version.strip())
-                            op, ver = m.groups()
-                            if ver in repodata_cl.version:
-                                _candidate_list_week_version.append(repodata_cl)
+                repodata_cl = PackageMetaInfo.from_repodata(package_key,
+                                                            self.repodata[arch]['packages.conda'][package_key])
+                # 名前が一致していなかったらcontinue
+                if target_package.name != repodata_cl.name:
                     continue
-            # 名前とバージョンが一致，ビルドも一致したら特定のパッケージなのでreturn
-            if target_package.build:
-                if self._satisfies_build(repodata_cl.build, target_package.build):
-                    return repodata_cl
 
-            # どれかしらに部分一致していたら代入
-            _candidate_list.append(repodata_cl)
+                # 名前は一致，バージョンをチェックして一致しなかったらcontinue
+                if target_package.version:
+                    if not self._satisfies_version(repodata_cl.version, target_package.version):
+                        # check week version
+                        if get_week_version:
+                            for version in target_package.version:
+                                m = re.match(r"(<=|>=|=|!=|<|>)(.+)", version.strip())
+                                op, ver = m.groups()
+                                if ver in repodata_cl.version:
+                                    _candidate_list_week_version.append(repodata_cl)
+                        continue
+                # 名前とバージョンが一致，ビルドも一致したら特定のパッケージなのでreturn
+                if target_package.build:
+                    if self._satisfies_build(repodata_cl.build, target_package.build):
+                        return repodata_cl
+
+                # どれかしらに部分一致していたら代入
+                _candidate_list.append(repodata_cl)
 
         # パッケージが見つからなかったら
         if len(_candidate_list) == 0:
@@ -248,7 +260,10 @@ class RepoData():
 
             # grep with max version
             version_list = [c.version for c in _candidate_list]
-            max_version = max(version_list, key=Version)
+            debug_print("------------- version list ------------------------")
+            debug_print(version_list)
+            debug_print("------------- version list ------------------------")
+            max_version = max(version_list, key=LooseVersion)
             _candidate_list = [c for c in _candidate_list if c.version == max_version]
             print(f'最大値のバージョンで絞りました．候補はまだ {len(_candidate_list)} 個あります．')
 
@@ -267,30 +282,33 @@ if __name__ == "__main__":
 
     all_package = []
 
-    target_package = "python"
+    target_package = "python=3.13"
     all_package.append(target_package)
-    target_package = "python>3.14"
+    target_package = "numpy"
     all_package.append(target_package)
-    target_package = "python=3.14" # ng because python_abi for 3.14 are not found
-    all_package.append(target_package)
-    target_package = "python=3.13.*" # ok
-    all_package.append(target_package)
-    target_package = "python=3.13" # ok
-    all_package.append(target_package)
-    target_package = "python=3.13.3" # ok
-    all_package.append(target_package)
-    target_package = "python<3.14,>3.10"
-    all_package.append(target_package)
-    target_package = "python<3.14>3.10"
-    all_package.append(target_package)
-    target_package = "python>=3.10,<=3.15"
-    all_package.append(target_package)
-    target_package = "python>=3.10<=3.15"
-    all_package.append(target_package)
+    # target_package = "python>3.14"
+    # all_package.append(target_package)
+    # target_package = "python=3.14" # ng because python_abi for 3.14 are not found
+    # all_package.append(target_package)
+    # target_package = "python=3.13.*" # ok
+    # all_package.append(target_package)
+    # target_package = "python=3.13" # ok
+    # all_package.append(target_package)
+    # target_package = "python=3.13.3" # ok
+    # all_package.append(target_package)
+    # target_package = "python<3.14,>3.10"
+    # all_package.append(target_package)
+    # target_package = "python<3.14>3.10"
+    # all_package.append(target_package)
+    # target_package = "python>=3.10,<=3.15"
+    # all_package.append(target_package)
+    # target_package = "python>=3.10<=3.15"
+    # all_package.append(target_package)
 
     repodata = RepoData()
 
     all_install_package_list = []
+    have_to_check_dep = []
     # parse command
     for spec in all_package:
 
@@ -322,9 +340,8 @@ if __name__ == "__main__":
         pprint(install_target)
         pprint(install_target.depends)
         print("--------------------------------------------------------")
-        input()
         all_install_package_list.append(install_target)
-        have_to_check_dep = [PackageMetaInfo.from_depend_format(i) for i in install_target.depends]
+        have_to_check_dep += [PackageMetaInfo.from_depend_format(i) for i in install_target.depends]
 
         while have_to_check_dep:
 
@@ -340,6 +357,7 @@ if __name__ == "__main__":
             install_target = repodata.search_package_from_repodata(dep)
             if not install_target:
                 print(f"COULD NOT FIND PACKAGE {dep}")
+                input()
                 have_to_check_dep.pop(0)
                 continue
             print(f'{dep}の条件に一致するパッケージ{install_target}を発見しました')
@@ -370,8 +388,8 @@ if __name__ == "__main__":
 
             have_to_check_dep.pop(0)
 
-        print('fin')
-        pprint(all_install_package_list)
+    print('fin')
+    pprint(all_install_package_list)
 
 # embed()
 

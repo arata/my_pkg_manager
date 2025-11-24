@@ -1,7 +1,7 @@
 /target
 .cache/
 .prefix/
-repodata.json
+repodata*.json
 pkg/
 **/__pycache__/**
 
