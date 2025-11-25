@@ -279,11 +279,10 @@ if __name__ == "__main__":
     n = ['13.1.*']
     w = ['14.3.*']
 
+    n = ['13.1.*']
+    w = ['13.1.*']
+
     ur = connect_version(n, w)
     print("ur: ", ur)
 
     print(LooseVersion("3.14.*") == LooseVersion("3.14.1"))
-
-
-
-    
