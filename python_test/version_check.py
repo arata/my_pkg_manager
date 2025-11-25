@@ -1,15 +1,7 @@
+import sys
 import re
 from functools import total_ordering
 from packaging.version import Version
-
-import re
-from functools import total_ordering
-
-import re
-from functools import total_ordering
-
-import re
-from functools import total_ordering
 
 @total_ordering
 class LooseVersion:
@@ -117,14 +109,18 @@ class LooseVersion:
         return f"LooseVersion('{self.original}')"
 
 
-import math
 def connect_version(version1, version2):
     def _parse(version):
         _v = {"min": None, "max": None}
         for cond in version:
             match = re.match(r"(<=|>=|=|==|!=|<|>)(.+)", cond.strip())
+            if not match: # only number like 15.2.0 not >=13.0.1
+                return None
             op, target = match.groups()
-            if op == "=" or op == "==": return
+            if op == "=" or op == "==":
+                print("connect_version failure")
+                sys.exit()
+                return
             
             if ">" in op:
                 _v["min"] = target
@@ -141,6 +137,34 @@ def connect_version(version1, version2):
     a = _parse(version1)
     b = _parse(version2)
 
+    print("a: ", a, "b: ", b)
+
+    # case1: version1 is plain version
+    if a is None:
+        v = version1[0]  # example: "15.2.0"
+        # check if v is in version2 range (b)
+        # b could also be None → both plain numbers → just return v if equal
+        if b is None:
+            LooseVersion(v)
+            
+            return v
+
+        min_ok = True
+        max_ok = True
+        if b["min"] != "-inf":
+            min_ok = LooseVersion(v) >= LooseVersion(b["min"])
+        if b["max"] != "inf":
+            max_ok = LooseVersion(v) <= LooseVersion(b["max"])
+        if min_ok and max_ok:
+            return [v]
+        else:
+            return None
+
+    # case2: version1 is range, version2 is plain version
+    if b is None:
+        return connect_version(version2, version1)
+
+    print("a: ", a, "b: ", b)
     if not (a['min'] < b['max'] and b['min'] < a['max']):
         return None
     
@@ -243,7 +267,20 @@ if __name__ == "__main__":
     l = ['>=18']
     m = ['>=18']
 
-    ur = connect_version(l, m)
+    n = ['15.2.0']
+    w = ['>=13']
+
+    n = ['>=13']
+    w = ['15.2.0']
+
+    n = ['>=16']
+    w = ['15.2.0']
+
+    n = ['13.1.*']
+    w = ['14.3.*']
+
+    ur = connect_version(n, w)
+    print("ur: ", ur)
 
     print(LooseVersion("3.14.*") == LooseVersion("3.14.1"))
 

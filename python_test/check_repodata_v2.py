@@ -24,7 +24,10 @@ base_anaconda_donwload_url = "https://repo.anaconda.com/pkgs/main/"
 # https://repo.anaconda.com/pkgs/main/linux-64/llama.cpp-0.0.6872-cuda124_h3e60e59_100.tar.bz2
 
 def debug_print(*args):
-    print("DEBUG:", *args)
+    STYLE = "\033[1;32m"
+    RESET = "\033[0m"
+    
+    print(f"{STYLE}DEBUG:", *args, RESET)
 
 class PackageMetaInfo:
     """
@@ -96,35 +99,32 @@ class PackageMetaInfo:
 
         return pmi
 
-    # ------------------------------
-    # 追加：比較メソッド
-    # ------------------------------
-    def compare_to(self, other_pkg):
-        """
-        name・version・buildが一致 or 条件に合うかを判定する
-        """
-        # ---------- name ----------
-        if hasattr(self, "name") and hasattr(other_pkg, "name"):
-            # print("compare_to name: ", self.name, other_pkg.name)
-            if self.name != other_pkg.name:
-                return None
-        
-        # ---------- version ----------
-        if hasattr(self, "version") and hasattr(other_pkg, "version"):
-            res_connect_version = connect_version(self.version, other_pkg.version)
-            if not res_connect_version:
-                print("Version are conflict !!!!!")
-                return None
+def compare_to(package1, package2):
+    """
+    name・version・buildが一致 or 条件に合うかを判定する
+    """
+    # ---------- name ----------
+    if hasattr(package1, "name") and hasattr(package2, "name"):
+        # print("compare_to name: ", self.name, other_pkg.name)
+        if package1.name != package2.name:
+            return None
 
-        # # ---------- build ----------
-        # if hasattr(self, "build") and hasattr(other, "build"):
-        #     # 完全一致
-        #     if self.build != other.build:
-        #         # 一致しない場合は prefix 一致など条件付き一致にも対応
-        #         if not self.build.startswith(other.build) and not other.build.startswith(self.build):
-        #             return False
+    # ---------- version ----------
+    if hasattr(package1, "version") and hasattr(package2, "version"):
+        res_connect_version = connect_version(package1.version, package2.version)
+        if not res_connect_version:
+            print("Version are conflict !!!!!")
+            return None
 
-        return res_connect_version
+    # # ---------- build ----------
+    # if hasattr(self, "build") and hasattr(other, "build"):
+    #     # 完全一致
+    #     if self.build != other.build:
+    #         # 一致しない場合は prefix 一致など条件付き一致にも対応
+    #         if not self.build.startswith(other.build) and not other.build.startswith(self.build):
+    #             return False
+
+    return res_connect_version
         
 
 class RepoData():
@@ -162,13 +162,15 @@ class RepoData():
         """
 
         v = LooseVersion(version)
-        debug_print("version: ",version, 'conditions: ', conditions)
+        debug_print("version: ",version, type(version), 'conditions: ', conditions, type(conditions))
 
         for cond in conditions:
+            debug_print('cond: ', cond)
             match = re.match(r"(<=|>=|=|!=|<|>)(.+)", cond.strip())
             if not match: # 不等号がなく数字だったときにはこっちに行く
                 try:
                     target_v = LooseVersion(cond)
+                    debug_print(v, target_v)
                     if v == target_v:
                         return True
                     else:
@@ -282,8 +284,8 @@ if __name__ == "__main__":
 
     all_package = []
 
-    target_package = "python=3.13"
-    all_package.append(target_package)
+    # target_package = "python=3.13"
+    # all_package.append(target_package)
     target_package = "numpy"
     all_package.append(target_package)
     # target_package = "python>3.14"
@@ -328,7 +330,8 @@ if __name__ == "__main__":
         versions = [op + ver for op, ver in version_specs]
         debug_print(versions)
 
-        target_package = PackageMetaInfo.from_direct(package_name, versions, build=None)
+        # target_package = PackageMetaInfo.from_direct(package_name, versions, build=None)
+        target_package = PackageMetaInfo.from_direct("numpy", ["=2.3.5"], build="py312h33ff503_0")
         # debug_print(target_package)
         debug_print(target_package)
         install_target = repodata.search_package_from_repodata(target_package, get_week_version=True)
@@ -340,8 +343,10 @@ if __name__ == "__main__":
         pprint(install_target)
         pprint(install_target.depends)
         print("--------------------------------------------------------")
+
+        # have_to_check_dep += [PackageMetaInfo.from_depend_format(i) for i in install_target.depends]
+        have_to_check_dep = all_install_package_list + [PackageMetaInfo.from_depend_format(i) for i in install_target.depends]
         all_install_package_list.append(install_target)
-        have_to_check_dep += [PackageMetaInfo.from_depend_format(i) for i in install_target.depends]
 
         while have_to_check_dep:
 
@@ -360,8 +365,8 @@ if __name__ == "__main__":
                 input()
                 have_to_check_dep.pop(0)
                 continue
-            print(f'{dep}の条件に一致するパッケージ{install_target}を発見しました')
 
+            print(f'{dep}の条件に一致するパッケージ{install_target}を発見しました')
             all_install_package_list.append(install_target)
 
             # もし新しいdependsに，すでに把握しているdependsがあった場合にバージョンをアップデートするか，
@@ -376,18 +381,22 @@ if __name__ == "__main__":
                 # 新しいdependsが既存のdependsチェックリストに入っているかを調べる
                 # もし入っていなかったら追加
                 if not install_target_dep.name in [_d.name for _d in have_to_check_dep]:
+                    debug_print("no depends in check list: ", install_target_dep)
                     have_to_check_dep.append(install_target_dep)
 
                 # もし入っていたらバージョンの確認
                 else:
                     for d in have_to_check_dep.copy():
-                        if d.name == install_target_dep:
-                            new_version = d.compare_to(install_target_dep)
+                        if d.name == install_target_dep.name:
+                            debug_print("find same depends: ", d, install_target_dep)
+                            new_version = compare_to(install_target_dep, d)
+                            debug_print("find same depends, update to :", new_version)
+                            input()
                             if new_version:
                                 d.version = new_version
 
             have_to_check_dep.pop(0)
-
+        input('end one package')
     print('fin')
     pprint(all_install_package_list)
 
